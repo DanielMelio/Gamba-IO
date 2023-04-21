@@ -78,14 +78,8 @@ workflows:
   orders-service-e2e:
     when: << pipeline.parameters.orders-service-e2e >>
     jobs:
-      - lint-orders-service-e2e:
-          filters:
-            branches:
-              ignore: main
-      - test-orders-service-e2e:
-          filters:
-            branches:
-              ignore: main
+      - lint-orders-service-e2e
+      - test-orders-service-e2e
       - build-orders-service-e2e:
           name: build-environments
           build-env: environments
