@@ -17,9 +17,6 @@ parameters:
   deploy-env:
     type: string
     default: dev
-  aws-profile:
-    type: string
-    default: melio
 
 aliases:
   - &restore-cache
@@ -82,25 +79,15 @@ workflows:
     when: << pipeline.parameters.orders-service >>
     jobs:
       - lint-orders-service:
-          context: melio-all
           filters:
             branches:
               ignore: main
       - test-orders-service:
-          context: melio-all
           filters:
             branches:
               ignore: main
       - build-orders-service:
-          name: build-production
-          context: melio-all
-          build-env: production
-          filters:
-            branches:
-              only: main
-      - build-orders-service:
           name: build-environments
-          context: melio-all
           build-env: environments
           filters:
             branches:
