@@ -1,0 +1,109 @@
+version: 2.1
+
+executors:
+  app-executor:
+    docker:
+      - image: cimg/node:16.19
+    resource_class: xlarge
+
+  test-executor:
+    docker:
+      - image: cimg/node:16.19
+      - image: mongo:5.0.12
+    resource_class: xlarge
+
+parameters:
+  orders-service:
+    type: boolean
+    default: false
+  deploy-env:
+    type: string
+    default: dev
+  aws-profile:
+    type: string
+    default: melio
+
+aliases:
+  - &restore-cache
+    restore_cache:
+      keys:
+        - v1-{{ checksum "yarn.lock" }}
+
+commands:
+  job-setup-orders-service:
+    description: 'Job Setup'
+    steps:
+      - checkout
+      - *restore-cache
+
+jobs:
+  lint-orders-service:
+    executor: app-executor
+    steps:
+      - job-setup-orders-service
+      - run:
+          name: Lint
+          command: npx nx@15.9.2 lint orders-service
+
+  test-orders-service:
+    executor: test-executor
+    steps:
+      - job-setup-orders-service
+      - run:
+          name: Test
+          command: npx nx@15.9.2 test orders-service
+
+  build-orders-service:
+    executor: app-executor
+    parameters:
+      build-env:
+        type: string
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - job-setup-orders-service
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build orders-service
+      - when:
+          condition:
+            equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build orders-service --configuration=production
+
+workflows:
+  orders-service:
+    when: << pipeline.parameters.orders-service >>
+    jobs:
+      - lint-orders-service:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - test-orders-service:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - build-orders-service:
+          name: build-production
+          context: melio-all
+          build-env: production
+          filters:
+            branches:
+              only: main
+      - build-orders-service:
+          name: build-environments
+          context: melio-all
+          build-env: environments
+          filters:
+            branches:
+              ignore: main

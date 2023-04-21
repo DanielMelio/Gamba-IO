@@ -1,0 +1,79 @@
+version: 2.1
+
+setup: true
+
+parameters:
+  app-to-deploy:
+    type: string
+    default: none
+
+executors:
+  ci-node:
+    docker:
+      - image: cimg/node:16.19
+        environment:
+          CI: TRUE
+    resource_class: medium+
+
+orbs:
+  split-config: bufferings/split-config@0.1.0
+
+jobs:
+  setup:
+    executor: ci-node
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: yarn
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [main, << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Save Affected Projects
+                command: npx nx@15.9.2 print-affected --type=app | jq 'reduce .projects[] as $i ({}; .[$i] = true)' > /home/circleci/apps-affected.json
+      - when:
+          condition:
+            equal: [main, << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Save Affected Projects
+                command: npx nx@15.9.2 print-affected --base=HEAD~1 --type=app | jq 'reduce .projects[] as $i ({}; .[$i] = true)' > /home/circleci/apps-affected.json
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [none, << pipeline.parameters.app-to-deploy >>]
+          steps:
+            - run:
+                name: Save Affected Projects
+                command: echo << pipeline.parameters.app-to-deploy >> | jq -R 'sub(" ";"") | sub(", ";",") | split(",") | reduce .[] as $i ({}; .[$i] = true)'  > /home/circleci/apps-affected.json
+      - run:
+          name: Print Affected Projects
+          command: cat /home/circleci/apps-affected.json
+      - save_cache:
+          key: v1-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/project/node_modules
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - apps-affected.json
+
+workflows:
+  setup:
+    jobs:
+      - setup:
+          context: melio-all
+      - split-config/generate-config:
+          find-config-regex: .*/\apps/.*/\.circleci/config\.yml
+          fixed-config-paths: ./.circleci/base_config.yml
+          continuation-parameters: /home/circleci/apps-affected.json
+          pre-steps:
+            - attach_workspace:
+                at: ~/
+          requires:
+            - setup

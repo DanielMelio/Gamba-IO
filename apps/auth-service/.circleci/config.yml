@@ -1,0 +1,109 @@
+version: 2.1
+
+executors:
+  app-executor:
+    docker:
+      - image: cimg/node:16.19
+    resource_class: xlarge
+
+  test-executor:
+    docker:
+      - image: cimg/node:16.19
+      - image: mongo:5.0.12
+    resource_class: xlarge
+
+parameters:
+  auth-service:
+    type: boolean
+    default: false
+  deploy-env:
+    type: string
+    default: dev
+  aws-profile:
+    type: string
+    default: melio
+
+aliases:
+  - &restore-cache
+    restore_cache:
+      keys:
+        - v1-{{ checksum "yarn.lock" }}
+
+commands:
+  job-setup-auth-service:
+    description: 'Job Setup'
+    steps:
+      - checkout
+      - *restore-cache
+
+jobs:
+  lint-auth-service:
+    executor: app-executor
+    steps:
+      - job-setup-auth-service
+      - run:
+          name: Lint
+          command: npx nx@15.9.2 lint auth-service
+
+  test-auth-service:
+    executor: test-executor
+    steps:
+      - job-setup-auth-service
+      - run:
+          name: Test
+          command: npx nx@15.9.2 test auth-service
+
+  build-auth-service:
+    executor: app-executor
+    parameters:
+      build-env:
+        type: string
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - job-setup-auth-service
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build auth-service
+      - when:
+          condition:
+            equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build auth-service --configuration=production
+
+workflows:
+  auth-service:
+    when: << pipeline.parameters.auth-service >>
+    jobs:
+      - lint-auth-service:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - test-auth-service:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - build-auth-service:
+          name: build-production
+          context: melio-all
+          build-env: production
+          filters:
+            branches:
+              only: main
+      - build-auth-service:
+          name: build-environments
+          context: melio-all
+          build-env: environments
+          filters:
+            branches:
+              ignore: main

@@ -1,0 +1,4 @@
+parameters:
+  app-to-deploy:
+    type: string
+    default: none
