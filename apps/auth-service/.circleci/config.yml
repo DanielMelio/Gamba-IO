@@ -78,17 +78,8 @@ workflows:
   auth-service:
     when: << pipeline.parameters.auth-service >>
     jobs:
-      - lint-auth-service:
-          filters:
-            branches:
-              ignore: main
-      - test-auth-service:
-          filters:
-            branches:
-              ignore: main
+      - lint-auth-service
+      - test-auth-service
       - build-auth-service:
           name: build-environments
           build-env: environments
-          filters:
-            branches:
-              ignore: main
