@@ -6,7 +6,6 @@ executors:
   test-executor:
     docker:
       - image: cimg/node:16.19
-      - image: mongo:5.0.12
 
 parameters:
   gamba-ui:

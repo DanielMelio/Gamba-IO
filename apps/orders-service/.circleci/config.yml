@@ -40,11 +40,12 @@ jobs:
 
   test-orders-service:
     executor: test-executor
+    parallelism: 4
     steps:
       - job-setup-orders-service
       - run:
           name: Test
-          command: npx nx@15.9.2 test orders-service
+          command: npx nx@15.9.2 test orders-service | circleci tests split --split-by=timings
 
   build-orders-service:
     executor: app-executor
