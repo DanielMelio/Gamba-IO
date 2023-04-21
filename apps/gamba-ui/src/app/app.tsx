@@ -12,6 +12,7 @@ export function App() {
   return (
     <StyledApp>
       <NxWelcome title="gamba-ui" />
+      <NxWelcome title="Daniel-ui" />
 
       {/* START: routes */}
       {/* These routes and navigation have been generated for you */}
