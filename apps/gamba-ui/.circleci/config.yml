@@ -2,13 +2,11 @@ executors:
   app-executor:
     docker:
       - image: cimg/node:16.19
-    resource_class: xlarge
 
   test-executor:
     docker:
       - image: cimg/node:16.19
       - image: mongo:5.0.12
-    resource_class: xlarge
 
 parameters:
   gamba-ui:
