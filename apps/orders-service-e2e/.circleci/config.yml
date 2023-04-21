@@ -1,0 +1,107 @@
+executors:
+  app-executor:
+    docker:
+      - image: cimg/node:16.19
+    resource_class: xlarge
+
+  test-executor:
+    docker:
+      - image: cimg/node:16.19
+      - image: mongo:5.0.12
+    resource_class: xlarge
+
+parameters:
+  orders-service-e2e:
+    type: boolean
+    default: false
+  deploy-env:
+    type: string
+    default: dev
+  aws-profile:
+    type: string
+    default: melio
+
+aliases:
+  - &restore-cache
+    restore_cache:
+      keys:
+        - v1-{{ checksum "yarn.lock" }}
+
+commands:
+  job-setup-orders-service-e2e:
+    description: 'Job Setup'
+    steps:
+      - checkout
+      - *restore-cache
+
+jobs:
+  lint-orders-service-e2e:
+    executor: app-executor
+    steps:
+      - job-setup-orders-service-e2e
+      - run:
+          name: Lint
+          command: npx nx@15.9.2 lint orders-service-e2e
+
+  test-orders-service-e2e:
+    executor: test-executor
+    steps:
+      - job-setup-orders-service-e2e
+      - run:
+          name: Test
+          command: npx nx@15.9.2 test orders-service-e2e
+
+  build-orders-service-e2e:
+    executor: app-executor
+    parameters:
+      build-env:
+        type: string
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - job-setup-orders-service-e2e
+      - when:
+          condition:
+            and:
+              - not:
+                  equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build orders-service-e2e
+      - when:
+          condition:
+            equal: [production, << parameters.build-env >>]
+          steps:
+            - run:
+                name: Build
+                command: npx nx@15.9.2 build orders-service-e2e --configuration=production
+
+workflows:
+  orders-service-e2e:
+    when: << pipeline.parameters.orders-service-e2e >>
+    jobs:
+      - lint-orders-service-e2e:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - test-orders-service-e2e:
+          context: melio-all
+          filters:
+            branches:
+              ignore: main
+      - build-orders-service-e2e:
+          name: build-production
+          context: melio-all
+          build-env: production
+          filters:
+            branches:
+              only: main
+      - build-orders-service-e2e:
+          name: build-environments
+          context: melio-all
+          build-env: environments
+          filters:
+            branches:
+              ignore: main
